@@ -19,22 +19,21 @@ module Shoulda # :nodoc:
         #   it { should callback(:method).before(:validation).unless(:should_it_not?) }
         #   it { should callback(CallbackClass).before(:validation).unless(:should_it_not?) }
         #
-        def callback method
-          CallbackMatcher.new method
+        def callback(method)
+          CallbackMatcher.new(method)
         end
 
         class CallbackMatcher # :nodoc:
-          VALID_OPTIONAL_LIFECYCLES = [:validation, :commit, :rollback].freeze
+          VALID_OPTIONAL_LIFECYCLES = %i(validation commit rollback).freeze
           
           include RailsVersionHelper
           
-          def initialize method
+          def initialize(method)
             @method = method
           end
         
-          # @todo replace with %i() as soon as 1.9 is deprecated
-          [:before, :after, :around].each do |hook|
-            define_method hook do |lifecycle|
+          %i(before after around).each do |hook|
+            define_method(hook) do |lifecycle|
               @hook = hook
               @lifecycle = lifecycle
               check_for_undefined_callbacks!
@@ -42,9 +41,9 @@ module Shoulda # :nodoc:
               self
             end
           end
-        
-          [:if, :unless].each do |condition_type|
-            define_method condition_type do |condition|
+
+          %i(if unless).each do |condition_type|
+            define_method(condition_type) do |condition|
               @condition_type = condition_type
               @condition = condition
 
@@ -52,7 +51,7 @@ module Shoulda # :nodoc:
             end
           end
         
-          def on optional_lifecycle
+          def on(optional_lifecycle)
             check_for_valid_optional_lifecycles!
             
             @optional_lifecycle = optional_lifecycle
@@ -60,10 +59,15 @@ module Shoulda # :nodoc:
             self
           end
 
-          def matches? subject
+          def matches?(subject)
             check_preconditions!
-            
-            callbacks = subject.send :"_#{@lifecycle}_callbacks"
+
+            chain_name = if @lifecycle == :commit && @hook == :before
+                           "_before_commit_callbacks"
+                         else
+                           "_#{@lifecycle}_callbacks"
+                         end
+            callbacks = subject.send(chain_name.to_sym)
             callbacks.any? do |callback|
               has_callback?(subject, callback) &&
               matches_hook?(callback) && 
@@ -73,7 +77,7 @@ module Shoulda # :nodoc:
             end
           end
           
-          def callback_method_exists? object, callback
+          def callback_method_exists?(object, callback)
             if is_class_callback?(object, callback) && !callback_object(object, callback).respond_to?(:"#{@hook}_#{@lifecycle}", true)
               @failure_message = "callback #{@method} is listed as a callback #{@hook} #{@lifecycle}#{optional_lifecycle_phrase}#{condition_phrase}, but the given object does not respond to #{@hook}_#{@lifecycle} (using respond_to?(:#{@hook}_#{@lifecycle}, true)"
               false
@@ -108,18 +112,12 @@ module Shoulda # :nodoc:
           end
           
           def check_lifecycle_present!
-            unless @lifecycle
-              raise UsageError, "callback #{@method} can not be tested against an undefined lifecycle, use .before, .after or .around", caller
-            end
+            raise UsageError, "callback #{@method} can not be tested against an undefined lifecycle, use .before, .after or .around", caller unless @lifecycle
           end
           
           def check_for_undefined_callbacks!
-            if [:rollback].include?(@lifecycle) && @hook != :after
-              raise UsageError, "Can not callback before or around #{@lifecycle}, use after.", caller
-            end
-            if [:commit].include?(@lifecycle) && @hook == :around
-              raise UsageError, "Can not callback before or around #{@lifecycle}, use after.", caller
-            end
+            raise UsageError, "Can not callback before or around #{@lifecycle}, use after.", caller if :rollback == @lifecycle && @hook != :after
+            raise UsageError, "Can not callback before or around #{@lifecycle}, use after.", caller if :commit == @lifecycle && @hook == :around
           end
           
           def check_for_valid_optional_lifecycles!
@@ -132,30 +130,30 @@ module Shoulda # :nodoc:
             @failure_message.present?
           end
           
-          def matches_hook? callback
+          def matches_hook?(callback)
             callback.kind == @hook
           end
 
-          def has_callback? subject, callback
+          def has_callback?(subject, callback)
             has_callback_object?(subject, callback) || has_callback_method?(callback) || has_callback_class?(callback)
           end
           
-          def has_callback_method? callback
+          def has_callback_method?(callback)
             callback.filter == @method
           end
           
-          def has_callback_class? callback
+          def has_callback_class?(callback)
             class_callback_required? && callback.filter.is_a?(@method)
           end
 
-          def has_callback_object? subject, callback
+          def has_callback_object?(subject, callback)
             callback.filter.respond_to?(:match) &&
             callback.filter.match(/\A_callback/) && 
             subject.respond_to?(:"#{callback.filter}_object") && 
             callback_object(subject, callback).class == @method 
           end
           
-          def matches_conditions? callback
+          def matches_conditions?(callback)
             if rails_version >= '4.1'
               !@condition || callback.instance_variable_get(:"@#{@condition_type}").include?(@condition)
             else
@@ -163,7 +161,7 @@ module Shoulda # :nodoc:
             end
           end
         
-          def matches_optional_lifecycle? callback
+          def matches_optional_lifecycle?(callback)
             if rails_version >= '4.1'
               if_conditions = callback.instance_variable_get(:@if)
               !@optional_lifecycle || if_conditions.include?(lifecycle_context_string) || active_model_proc_matches_optional_lifecycle?(if_conditions)
@@ -206,7 +204,7 @@ module Shoulda # :nodoc:
             end
           end
           
-          def active_model_proc_matches_optional_lifecycle? if_conditions
+          def active_model_proc_matches_optional_lifecycle?(if_conditions)
             if @lifecycle != :validation && rails_version >= '5.2'
               optional_lifecycles = @optional_lifecycle.kind_of?(Array) ? @optional_lifecycle : [@optional_lifecycle]
               if_conditions.select { |c| c.is_a?(Proc) && c.binding.local_variable_defined?(:fire_on) }.any? do |c|
@@ -223,11 +221,11 @@ module Shoulda # :nodoc:
             !@method.is_a?(Symbol) && !@method.is_a?(String)
           end
           
-          def is_class_callback? subject, callback
+          def is_class_callback?(subject, callback)
             !callback_object(subject, callback).is_a?(Symbol) && !callback_object(subject, callback).is_a?(String)
           end
           
-          def callback_object subject, callback
+          def callback_object(subject, callback)
             if (rails_version >= '3.0' && rails_version < '4.1') && !callback.filter.is_a?(Symbol)
               subject.send("#{callback.filter}_object")
             else
