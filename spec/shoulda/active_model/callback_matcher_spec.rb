@@ -1,7 +1,4 @@
-  require 'spec_helper'
-
 describe Shoulda::Callback::Matchers::ActiveModel do
-
   context "invalid use" do
     before do
       @callback_object_class = define_model :callback do
@@ -39,8 +36,8 @@ describe Shoulda::Callback::Matchers::ActiveModel do
         "The .on option is only valid for validation, commit, and rollback and cannot be used with create, use with .before(:validation) or .after(:validation)"
     end
     it "should return a meaningful error when used with rollback or commit and before" do
-      expect { callback(@callback_object_class).before(:commit).on(:destroy) }.to raise_error Shoulda::Callback::Matchers::ActiveModel::UsageError,
-        "Can not callback before or around commit, use after."
+      expect { callback(@callback_object_class).before(:rollback).on(:destroy) }.to raise_error Shoulda::Callback::Matchers::ActiveModel::UsageError,
+        "Can not callback before or around rollback, use after."
     end
   end
 
@@ -357,7 +354,6 @@ describe Shoulda::Callback::Matchers::ActiveModel do
     end
   end
 
-
   [:rollback, :commit].each do |lifecycle|
     context "on #{lifecycle}" do
       before do
@@ -664,7 +660,6 @@ describe Shoulda::Callback::Matchers::ActiveModel do
           expect(matcher.description).to eq("callback Callback after #{lifecycle} unless evaluates_to_false! evaluates to false")
         end
       end
-
     end
   end
 end

@@ -114,7 +114,10 @@ module Shoulda # :nodoc:
           end
           
           def check_for_undefined_callbacks!
-            if [:rollback, :commit].include?(@lifecycle) && @hook != :after
+            if [:rollback].include?(@lifecycle) && @hook != :after
+              raise UsageError, "Can not callback before or around #{@lifecycle}, use after.", caller
+            end
+            if [:commit].include?(@lifecycle) && @hook == :around
               raise UsageError, "Can not callback before or around #{@lifecycle}, use after.", caller
             end
           end
